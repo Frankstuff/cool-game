@@ -1,0 +1,59 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0c1020; font-family: system-ui, sans-serif; color: #eef; }
+canvas { display: block; position: fixed; inset: 0; }
+.hidden { display: none !important; }
+
+#menu {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; background: radial-gradient(circle at 50% 30%, #1a2140, #0c1020);
+}
+#menu h1 { font-size: 56px; margin: 0; letter-spacing: 2px;
+  background: linear-gradient(90deg, #ff5a5a, #4caf50, #4a9dff);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+#menu .tag { margin: 0 0 8px; opacity: .8; }
+#menu input { padding: 10px 14px; font-size: 18px; border-radius: 8px; border: 1px solid #345; background: #121a30; color: #eef; width: 240px; text-align: center; }
+#menu button, #link-prompt button { padding: 10px 22px; font-size: 18px; border: none; border-radius: 8px; cursor: pointer; background: #4a9dff; color: #001; font-weight: 700; }
+#menu button:hover { background: #6fb0ff; }
+#menu .help { margin-top: 14px; font-size: 13px; opacity: .7; text-align: center; line-height: 1.6; }
+#status { margin-top: 8px; font-size: 12px; opacity: .5; }
+
+/* Compact, self-contained translucent stats card, upper-right. */
+#stats {
+  position: fixed; right: 12px; top: 12px; z-index: 5;
+  width: 158px; padding: 7px 9px; font-size: 11px; line-height: 1.35;
+  background: rgba(30, 74, 140, 0.32);
+  border: 1px solid rgba(120, 180, 255, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+#stats .s-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 13px; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,.15); }
+#stats .s-score { margin-bottom: 5px; opacity: .95; }
+#stats .s-hp { position: relative; height: 14px; border-radius: 7px; background: rgba(0,0,0,.4); overflow: hidden; margin-bottom: 6px; }
+#stats .s-hp-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ff5a5a, #7ada7a); transition: width .15s; }
+#stats .s-hp-txt { position: absolute; inset: 0; text-align: center; font-size: 10px; line-height: 14px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+#stats .s-rows { display: flex; flex-direction: column; gap: 2px; }
+#stats .s-row { display: flex; justify-content: space-between; opacity: .92; }
+#stats .s-row b { color: #cfe2ff; }
+#stats .held { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.18); font-size: 11px; opacity: .95; }
+
+#abilities { position: fixed; left: 12px; bottom: 12px; z-index: 5; display: flex; gap: 8px; }
+.ability { background: #0009; border: 1px solid #345; border-radius: 8px; padding: 6px 10px; font-size: 12px; min-width: 56px; text-align: center; }
+.ability.cd { opacity: .45; }
+.ability .key { font-weight: 700; display: block; font-size: 15px; }
+
+/* Leaderboard moved to upper-left so it doesn't fight the stats panel. */
+#leaderboard { position: fixed; left: 12px; top: 12px; z-index: 5; background: #0009; padding: 10px 14px; border-radius: 8px; min-width: 170px; }
+#leaderboard h3 { margin: 0 0 6px; font-size: 14px; }
+#leaderboard ol { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.5; }
+#leaderboard .red { color: #ff7a7a; } #leaderboard .green { color: #7ada7a; } #leaderboard .blue { color: #7ab6ff; }
+
+#feed { position: fixed; left: 12px; bottom: 84px; z-index: 5; font-size: 12px; max-width: 320px; }
+#feed div { background: #0007; padding: 4px 8px; border-radius: 6px; margin-bottom: 4px; opacity: .9; }
+
+#link-prompt { position: fixed; left: 50%; top: 20%; transform: translateX(-50%); z-index: 8; background: #101830ee; padding: 14px 18px; border-radius: 12px; text-align: center; border: 1px solid #4a9dff; }
+#link-prompt span { display: block; margin-bottom: 10px; font-size: 16px; }
+#link-prompt button { margin: 0 6px; }
+#link-reject { background: #ff6a6a; }

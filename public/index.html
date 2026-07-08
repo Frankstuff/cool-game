@@ -1,0 +1,38 @@
+<link rel="stylesheet" href="/style.css" />
+
+<div id="stats" class="panel hidden"></div>
+
+<div id="leaderboard" class="panel hidden">
+  <h3>Leaderboard</h3>
+  <ol id="lb-list"></ol>
+</div>
+
+<div id="abilities" class="hidden"></div>
+
+<div id="feed" class="hidden"></div>
+
+<div id="link-prompt" class="hidden">
+  <span id="link-text"></span>
+  <button id="link-accept">Accept (Y)</button>
+  <button id="link-reject">Reject (N)</button>
+</div>
+
+<div id="menu">
+  <h1>cool-game</h1>
+  <p class="tag">A Chad / Foid / Chud arena .io game</p>
+  <input id="name" placeholder="Your name" maxlength="16" />
+  <button id="play">Play</button>
+  <div class="help">
+    <p><b>Move:</b> mouse or WASD &nbsp; <b>Attack:</b> click / F (fists, or a gun you pick up)</p>
+    <p><b>Mate (Foid):</b> Space &nbsp; <b>Foid:</b> Q Dash Burst &middot; E Hypergamy &nbsp; <b>Chud:</b> Q Blackpill Spray &middot; E Inceldot</p>
+    <p>Everyone starts with fists. Grab a weapon crate to equip a Blaster. Collect Looksmaxx Orbs to grow.</p>
+  </div>
+  <div id="status">connecting…</div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script src="/shared/constants.js"></script>
+<script src="/shared/util.js"></script>
+<script src="/assets/manifest.js"></script>
+<script src="/client.js"></script>
