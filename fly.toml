@@ -1,0 +1,33 @@
+# fly.toml — cool-game
+# `app` must be globally unique on Fly. This matches the name Fly generated in
+# the web launcher. If you change the App name in the UI, change it here too.
+app = "cool-game-hbmlxw"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Single in-memory world → keep exactly one machine always running.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  # Simple HTTP health check against the served page.
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
