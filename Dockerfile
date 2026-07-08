@@ -10,8 +10,9 @@ RUN npm ci --omit=dev
 # App source
 COPY . .
 
+# Fly's proxy defaults to internal port 8080 — listen there in the container.
 ENV NODE_ENV=production
-ENV PORT=3000
-EXPOSE 3000
+ENV PORT=8080
+EXPOSE 8080
 
 CMD ["node", "server/index.js"]
