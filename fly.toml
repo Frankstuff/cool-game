@@ -1,7 +1,7 @@
 # fly.toml — cool-game
 # `app` must be globally unique on Fly. This matches the name Fly generated in
 # the web launcher. If you change the App name in the UI, change it here too.
-app = "cool-game-hbmlxw"
+app = "cool-game-7msqfg"
 primary_region = "iad"
 
 [build]
