@@ -1,33 +1,35 @@
-# fly.toml — cool-game
-# `app` must be globally unique on Fly. This matches the name Fly generated in
-# the web launcher. If you change the App name in the UI, change it here too.
-app = "cool-game-7msqfg"
-primary_region = "iad"
+# fly.toml app configuration file generated for cool-game-7msqfg on 2026-07-08T03:05:32Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'cool-game-7msqfg'
+primary_region = 'sjc'
 
 [build]
 
 [http_service]
   internal_port = 8080
   force_https = true
-  # Single in-memory world → keep exactly one machine always running.
-  auto_stop_machines = "off"
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 250
     soft_limit = 200
 
-  # Simple HTTP health check against the served page.
   [[http_service.checks]]
-    interval = "15s"
-    timeout = "3s"
-    grace_period = "10s"
-    method = "GET"
-    path = "/"
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
