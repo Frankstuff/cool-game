@@ -149,6 +149,14 @@
       lastEventAt = e.at;
       const msg = formatEvent(e);
       if (msg) pushFeed(msg);
+      // Humorous floating death text at the victim's last known spot.
+      if (e.t === 'death') {
+        const victim = (state.players || []).find((p) => p.id === e.id);
+        if (victim) {
+          const q = DEATH_QUOTES[Math.floor(Math.random() * DEATH_QUOTES.length)];
+          spawnFloater(victim.x, victim.y, q, '#ff6a6a');
+        }
+      }
     }
   }
 
@@ -157,6 +165,7 @@
       case 'link_success': return `💞 A ${teamName('blue')} & ${teamName('red')} ${NAMES.mating}!`;
       case 'upgrade': return `🧬 A ${teamName('green')} got surgery → ${teamName('red')}!`;
       case 'mythic': return `✨ ${NAMES.mythic}! A ${teamName('green')} became a ${teamName('red')}!`;
+      case 'frenzy': return `💉 Someone popped ${NAMES.frenzy}!`;
       case 'death': return '💀 Someone got knocked out';
       default: return null;
     }
@@ -178,11 +187,13 @@
           ? `<div class="held">👊 ${NAMES.items[w.type] || w.type}</div>`
           : `<div class="held">🔫 ${NAMES.items[w.type] || w.type} · ammo ${w.ammo}</div>`)
       : `<div class="held" style="opacity:.6">unarmed</div>`;
+    const frenzy = self.frenzyMs > 0
+      ? `<div class="held" style="color:#ffb066">💉 ${NAMES.frenzy} ${Math.ceil(self.frenzyMs / 1000)}s</div>` : '';
     statsEl.innerHTML =
       `<div class="s-head"><span style="color:${TEAM_COLOR[self.team]}">${teamName(self.team)}</span><span>Tier ${self.tier}</span></div>` +
       `<div class="s-score">Score <b>${self.score}</b></div>` +
       hpBar +
-      `<div class="s-rows">${rows}</div>${held}`;
+      `<div class="s-rows">${rows}</div>${held}${frenzy}`;
 
     const cd = self.cooldowns || {};
     const A = NAMES.abilities;
@@ -220,11 +231,14 @@
     drawGrid(ox, oy);
     drawZones(ox, oy);
     for (const t of state.trails || []) circle(t.x + ox, t.y + oy, t.r, '#4caf5044');
+    drawPosters(ox, oy);
     for (const o of state.orbs || []) circle(o.x + ox, o.y + oy, o.gym ? 7 : 5, o.gym ? '#ffd45a' : '#9fe6ff');
     for (const it of state.items || []) drawGroundItem(it, ox, oy);
+    for (const b of state.boosters || []) drawBooster(b, ox, oy);
     for (const m of state.mythics || []) star(m.x + ox, m.y + oy, 14, '#ff5ad0');
     for (const p of state.players || []) drawPlayer(p, ox, oy);
     for (const pr of state.projectiles || []) drawProjectile(pr, ox, oy);
+    drawFloaters(ox, oy);
     drawMinimap();
   }
 
@@ -313,6 +327,11 @@
     // ability auras
     if (p.beacon) circle(x, y, p.r + 20 + Math.sin(Date.now() / 120) * 6, '#4a9dff44');
     if (p.rage) square(x, y, s + 16, '#ff5a5a55');
+    if (p.frenzy) { // Roid Rage glow
+      ctx.strokeStyle = `rgba(255,140,0,${0.5 + 0.3 * Math.sin(Date.now() / 90)})`;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(x - p.r - 6, y - p.r - 6, s + 12, s + 12);
+    }
 
     const sprite = SPRITES[p.team];
     if (sprite) {
@@ -416,6 +435,63 @@
       ctx.font = 'bold 14px system-ui';
       ctx.textAlign = 'center';
       ctx.fillText('🔫', x, y + 5);
+    }
+  }
+
+  function drawBooster(b, ox, oy) {
+    const x = b.x + ox, y = b.y + oy;
+    const pulse = 14 + Math.sin(Date.now() / 150) * 2;
+    circle(x, y, pulse, '#ff8c00cc');
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 15px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('💉', x, y + 5);
+  }
+
+  // Decorative floating map elements (motivational posters / humorous quotes).
+  const POSTERS = [
+    { x: 900, y: 700, text: 'LOOKSMAXX OR ROT' },
+    { x: 5100, y: 900, text: 'STAY HARD' },
+    { x: 800, y: 5200, text: 'GYMCEL GRINDSET' },
+    { x: 5200, y: 5200, text: 'NEVER COPE' },
+    { x: 3000, y: 300, text: 'MOG EVERYONE' },
+    { x: 3000, y: 5700, text: 'ASCEND ⬆' },
+    { x: 300, y: 3000, text: 'TRUST THE PROCESS' },
+    { x: 5700, y: 3000, text: 'CHIN UP, MEWING ON' },
+  ];
+  function drawPosters(ox, oy) {
+    ctx.textAlign = 'center';
+    for (const p of POSTERS) {
+      const x = p.x + ox, y = p.y + oy;
+      if (x < -100 || y < -60 || x > canvas.width + 100 || y > canvas.height + 60) continue;
+      const bob = Math.sin(Date.now() / 700 + p.x) * 4;
+      ctx.font = 'bold 15px system-ui';
+      const w = ctx.measureText(p.text).width + 18;
+      ctx.fillStyle = '#ffffff10';
+      ctx.fillRect(x - w / 2, y - 14 + bob, w, 24);
+      ctx.fillStyle = '#ffffff40';
+      ctx.fillText(p.text, x, y + 3 + bob);
+    }
+  }
+
+  // Humorous death floating text.
+  const DEATH_QUOTES = ['COOKED', 'BLACKPILLED', 'MOGGED', 'REKT', 'IT’S OVER', 'ROPED', 'FUMBLED'];
+  const floaters = [];
+  function spawnFloater(x, y, text, color) {
+    floaters.push({ x, y, text, color: color || '#fff', born: Date.now(), ttl: 1400 });
+  }
+  function drawFloaters(ox, oy) {
+    ctx.textAlign = 'center';
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i];
+      const age = Date.now() - f.born;
+      if (age > f.ttl) { floaters.splice(i, 1); continue; }
+      const t = age / f.ttl;
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 20px system-ui';
+      ctx.fillText(f.text, f.x + ox, f.y + oy - t * 40);
+      ctx.globalAlpha = 1;
     }
   }
 

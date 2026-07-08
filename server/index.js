@@ -50,8 +50,29 @@ const server = http.createServer((req, res) => {
   return serveFile(res, path.join(PUBLIC_DIR, safe));
 });
 
+// Persist global-leaderboard history to disk so All-Time survives restarts.
+// (On an ephemeral host without a volume this resets on redeploy — fine for now.)
+const HISTORY_FILE = process.env.HISTORY_FILE || path.join(__dirname, '..', '.leaderboard.json');
+function loadHistory() {
+  try {
+    return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+function saveHistory() {
+  try {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(game.history.slice(-1000)));
+  } catch { /* best-effort */ }
+}
+
 const wss = new WebSocketServer({ server });
-const game = new Game({ seed: Date.now() & 0xffff });
+const game = new Game({ seed: Date.now() & 0xffff, history: loadHistory() });
+
+setInterval(saveHistory, 30000).unref();
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => { saveHistory(); process.exit(0); });
+}
 
 let nextId = 1;
 const sockets = new Map(); // id -> ws

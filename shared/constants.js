@@ -120,6 +120,19 @@ const ITEM_SPAWN = Object.freeze({
   RADIUS: 18, // pickup crate size
 });
 
+// Boosters — temporary combat power-ups picked up off the map (Frenzy Mode).
+const BOOSTERS = Object.freeze({
+  frenzy: Object.freeze({
+    type: 'frenzy',
+    durationMs: 8000,
+    damageMult: 1.8,
+    speedMult: 1.25,
+    radius: 16, // pickup size
+  }),
+});
+const BOOSTER_TYPES = Object.freeze(Object.keys(BOOSTERS));
+const BOOSTER_SPAWN = Object.freeze({ MAX: 4, SPAWN_CHANCE_PER_TICK: 0.012 });
+
 // Player health per team (Chad tanky, Chud fragile). Regen after not taking
 // damage for a short while.
 const HEALTH = Object.freeze({
@@ -157,6 +170,7 @@ const constants = {
   TEAM, TEAM_RATIO, WORLD, TEAM_CONFIG, STATS, ORBS, LINK, ABILITIES,
   GREEN_TOUCH, ZONE_TYPE, ZONES, ZONE_EFFECTS, MYTHIC, LEADERBOARD_CATEGORIES,
   ITEMS, ITEM_TYPES, GROUND_ITEM_TYPES, STARTING_ITEM, ITEM_SPAWN, HEALTH, NAMES,
+  BOOSTERS, BOOSTER_TYPES, BOOSTER_SPAWN,
 };
 
 // Dual export: CommonJS for Node, global for the browser (served as-is).

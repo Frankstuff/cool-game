@@ -7,6 +7,7 @@ let ORB_SEQ = 0;
 let MYTHIC_SEQ = 0;
 let ITEM_SEQ = 0;
 let PROJ_SEQ = 0;
+let BOOSTER_SEQ = 0;
 
 function newStats(rng) {
   return {
@@ -35,6 +36,8 @@ function tierOf(player) {
 class Game {
   constructor(opts = {}) {
     this.rng = opts.rng || makeRng(opts.seed || 1);
+    // Wall-clock source (real epoch ms) for time-windowed leaderboards; injectable for tests.
+    this.wallClock = opts.wallClock || (() => Date.now());
     this.now = 0; // internal monotonic clock in ms (advanced by tick)
     this.players = new Map();
     this.orbs = new Map();
@@ -42,10 +45,13 @@ class Game {
     this.mythics = new Map(); // charisma surge items
     this.items = new Map(); // ground weapon crates
     this.projectiles = new Map(); // in-flight shots
+    this.boosters = new Map(); // ground boosters (Frenzy Mode)
     this.pendingLinks = new Map(); // redId -> {blueId, expiresAt}
+    this.history = opts.history || []; // finished-run records for global leaderboards
     this.events = []; // transient feed drained each snapshot
     this.seedOrbs();
     this.seedItems();
+    this.seedBoosters();
   }
 
   // ---- lifecycle -----------------------------------------------------------
@@ -101,6 +107,7 @@ class Game {
       health: C.HEALTH[team],
       maxHealth: C.HEALTH[team],
       lastDamageAt: 0,
+      frenzyUntil: 0, // Roid Rage booster
       // held weapon — everyone starts with fists (ammo null = infinite)
       heldItem: { type: C.STARTING_ITEM[team], ammo: null },
       shootCooldownUntil: 0,
@@ -121,6 +128,8 @@ class Game {
   }
 
   removePlayer(id) {
+    const p = this.players.get(id);
+    if (p) this.recordScore(p); // archive the finished run for global boards
     this.players.delete(id);
     this.pendingLinks.delete(id);
     for (const [redId, link] of this.pendingLinks) {
@@ -282,7 +291,7 @@ class Game {
       const kd = d < 1 ? 1 : d;
       target.x = clamp(target.x + (dx / kd) * def.knockback, 0, C.WORLD.WIDTH);
       target.y = clamp(target.y + (dy / kd) * def.knockback, 0, C.WORLD.HEIGHT);
-      this.applyDamage(target, def.damage, p);
+      this.applyDamage(target, def.damage * this.damageMult(p), p);
     }
   }
 
@@ -326,7 +335,7 @@ class Game {
           shooter.score += stolen;
           shooter.disruptions++;
         }
-        this.applyDamage(target, def.damage, shooter);
+        this.applyDamage(target, def.damage * this.damageMult(shooter), shooter);
         this.projectiles.delete(pid);
         this.pushEvent({ t: 'hit', by: pr.ownerId, id: target.id });
         break;
@@ -346,6 +355,47 @@ class Game {
     if (this.items.size < C.ITEM_SPAWN.MAX && this.rng() < C.ITEM_SPAWN.SPAWN_CHANCE_PER_TICK) {
       this.spawnItem();
     }
+  }
+
+  // ---- boosters (Frenzy Mode / Roid Rage) ----------------------------------
+
+  seedBoosters() {
+    for (let i = 0; i < C.BOOSTER_SPAWN.MAX; i++) this.spawnBooster();
+  }
+
+  spawnBooster() {
+    const id = 'b' + BOOSTER_SEQ++;
+    const type = C.BOOSTER_TYPES[Math.floor(this.rng() * C.BOOSTER_TYPES.length)];
+    this.boosters.set(id, {
+      id, type,
+      x: this.rng() * C.WORLD.WIDTH,
+      y: this.rng() * C.WORLD.HEIGHT,
+    });
+  }
+
+  handleBoosters() {
+    for (const p of this.players.values()) {
+      if (!p.alive) continue;
+      for (const [bid, b] of this.boosters) {
+        const def = C.BOOSTERS[b.type];
+        const reach = p.radius + def.radius;
+        if (dist2(p.x, p.y, b.x, b.y) > reach * reach) continue;
+        p.frenzyUntil = this.now + def.durationMs;
+        this.boosters.delete(bid);
+        this.pushEvent({ t: 'frenzy', id: p.id });
+      }
+    }
+  }
+
+  replenishBoosters() {
+    if (this.boosters.size < C.BOOSTER_SPAWN.MAX && this.rng() < C.BOOSTER_SPAWN.SPAWN_CHANCE_PER_TICK) {
+      this.spawnBooster();
+    }
+  }
+
+  // Damage multiplier from an active Frenzy booster.
+  damageMult(p) {
+    return p && this.now < p.frenzyUntil ? C.BOOSTERS.frenzy.damageMult : 1;
   }
 
   // ---- linking --------------------------------------------------------------
@@ -448,6 +498,7 @@ class Game {
     let s = cfg.speed;
     if (this.now < p.dashUntil) s *= C.ABILITIES.DASH.SPEED_MULT;
     if (this.now < p.rageUntil) s *= C.ABILITIES.RAGE.SPEED_MULT;
+    if (this.now < p.frenzyUntil) s *= C.BOOSTERS.frenzy.speedMult;
     if (this.now < p.slowUntil) s *= C.GREEN_TOUCH.SLOW_MULT;
     if (this.now < p.linkBuffUntil) {
       s *= p.team === C.TEAM.BLUE ? C.LINK.BLUE_SPEED_BUFF : C.LINK.RED_SPEED_BUFF;
@@ -476,12 +527,14 @@ class Game {
     this.handleCollisions();
     this.handleOrbs();
     this.handleItems();
+    this.handleBoosters();
     this.tickProjectiles(dt);
     this.regenHealth(dt);
     this.handleZones(dt);
     this.handleMythics(dt);
     this.replenishOrbs();
     this.replenishItems();
+    this.replenishBoosters();
   }
 
   expireLinks() {
@@ -754,6 +807,39 @@ class Game {
       .map((p) => ({ id: p.id, name: p.name, team: p.team, value: Math.round(key(p)) }));
   }
 
+  // Archive a finished run so it counts toward global (All-Time / Daily / Weekly) boards.
+  recordScore(p) {
+    this.history.push({
+      name: p.name, team: p.team,
+      score: Math.round(p.score), links: p.links,
+      survival: this.survivalMs(p), orbs: p.orbsCollected,
+      disruptions: p.disruptions, dominance: p.pvpWins,
+      at: this.wallClock(),
+    });
+    if (this.history.length > 1000) this.history.shift();
+  }
+
+  // Global leaderboard across a time window ('all' | 'day' | 'week') merging
+  // archived runs with currently-active players. Categories match the design.
+  getGlobalLeaderboard(category = 'score', window = 'all', limit = 10) {
+    const cats = ['score', 'links', 'survival', 'orbs', 'disruptions', 'dominance'];
+    const k = cats.includes(category) ? category : 'score';
+    const now = this.wallClock();
+    const cutoff = window === 'day' ? now - 86400000 : window === 'week' ? now - 604800000 : 0;
+    const live = [...this.players.values()].map((p) => ({
+      name: p.name, team: p.team,
+      score: Math.round(p.score), links: p.links,
+      survival: this.survivalMs(p), orbs: p.orbsCollected,
+      disruptions: p.disruptions, dominance: p.pvpWins,
+      at: now,
+    }));
+    return [...this.history, ...live]
+      .filter((r) => r.at >= cutoff)
+      .sort((a, b) => (b[k] || 0) - (a[k] || 0))
+      .slice(0, limit)
+      .map((r) => ({ name: r.name, team: r.team, value: Math.round(r[k] || 0) }));
+  }
+
   // View centered on a player: only send nearby entities to limit bandwidth.
   getSnapshot(viewerId, viewR = 1600) {
     const viewer = this.players.get(viewerId);
@@ -772,6 +858,7 @@ class Game {
         dash: this.now < p.dashUntil,
         beacon: this.now < p.beaconUntil,
         rage: this.now < p.rageUntil,
+        frenzy: this.now < p.frenzyUntil,
         slow: this.now < p.slowUntil,
         stun: this.now < p.stunUntil,
         linkPartnerId: p.linkPartnerId,
@@ -801,6 +888,10 @@ class Game {
     for (const pr of this.projectiles.values()) {
       if (inView(pr.x, pr.y)) projectiles.push({ id: pr.id, x: Math.round(pr.x), y: Math.round(pr.y), r: pr.r, type: pr.type });
     }
+    const boosters = [];
+    for (const b of this.boosters.values()) {
+      if (inView(b.x, b.y)) boosters.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y), type: b.type });
+    }
 
     const pendingForViewer = [];
     if (viewer) {
@@ -818,6 +909,7 @@ class Game {
         team: viewer.team, score: Math.round(viewer.score), stats: viewer.stats,
         alive: viewer.alive, tier: tierOf(viewer),
         hp: Math.max(0, Math.round(viewer.health)), maxHp: viewer.maxHealth,
+        frenzyMs: Math.max(0, viewer.frenzyUntil - this.now),
         heldItem: viewer.heldItem ? { type: viewer.heldItem.type, ammo: viewer.heldItem.ammo } : null,
         cooldowns: {
           dash: Math.max(0, viewer.cooldowns.dash - this.now),
@@ -826,11 +918,16 @@ class Game {
           link: Math.max(0, viewer.linkCooldownUntil - this.now),
         },
       } : null,
-      players, orbs, trails, mythics, items, projectiles,
+      players, orbs, trails, mythics, items, projectiles, boosters,
       events: this.events.slice(-8),
       zones: C.ZONES,
       pendingLinks: pendingForViewer,
-      leaderboard: this.getLeaderboard('score', 10),
+      leaderboard: this.getGlobalLeaderboard('score', 'all', 10),
+      leaderboards: {
+        allTime: this.getGlobalLeaderboard('score', 'all', 10),
+        daily: this.getGlobalLeaderboard('score', 'day', 10),
+        weekly: this.getGlobalLeaderboard('score', 'week', 10),
+      },
       world: { w: C.WORLD.WIDTH, h: C.WORLD.HEIGHT },
     };
   }

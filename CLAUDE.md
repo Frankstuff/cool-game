@@ -90,3 +90,34 @@ Visual & Theme Style
 Top-down pixel / bright meme art style (old Flash games + modern .io polish).
 Teams use distinct color-coded visuals: Red (strong/dominant look), Blue (stylish/mobile look), Green (disruptive/edgy variants).
 Humorous death animations and floating text.
+
+---
+
+## Implementation Status
+
+Terminology: internal enums stay `red/green/blue`; all player-facing text uses
+Chad / Foid / Chud etc. via the `NAMES` map in `shared/constants.js`.
+
+Architecture: authoritative Node + `ws` server (20 Hz sim, clients send only
+input intents → anti-cheat), Canvas client. Tests: `node --test` (38 passing).
+
+- [x] Multiplayer, central authoritative server (`server/`), shared world
+- [x] Auto-balanced team ratio 1 Chad : 9 Chud : 3 Foid (`pickTeam`)
+- [x] Looksmaxx Orbs, per-team multipliers (Chad 2x / Foid 1x / Chud 0.5x→1x upgraded), kept scarce
+- [x] Mating (link): request → 3s accept, unequal rewards + buffs, long cooldown
+- [x] Rejection penalty/boost, survival time, PvP victories, upgrade scoring
+- [x] Stats: Height/Face/Strength/Attractiveness (main multiplier)/Personality (joke)
+- [x] Foid: Dash Burst, Hypergamy Mode ultimate, mobility, Chud-touch Blackpill Debuff (slow+shrink), tiers
+- [x] Chad: Chad Aura (attract Foid / repel weak Chud), accept/deny mating, PvP
+- [x] Chud: Blackpill Spray trail, Inceldot rage ultimate, numbers
+- [x] Upgrade zones: Leg Lengthening Surgery / Face Surgery → Chud becomes Chad
+- [x] Mythic Personality Surgery: instant Chud → high-stat Chad
+- [x] Tools/weapons: fists (Chad stronger) + pickup Blaster; health bars & damage
+- [x] Boosters: Roid Rage (Frenzy) pickup → temp damage + speed
+- [x] Map: large arena, Gym (dense orbs), Wage Cage (score drain), clinics, minimap
+- [x] Floating decorative posters/quotes + humorous death floating text
+- [x] Random spawns: orbs, weapon crates, boosters, mythic
+- [x] Anti-teaming: long mating cooldown, rejection risk
+- [x] Global leaderboards: 6 categories, All-Time / Daily / Weekly windows (disk-persisted)
+- [x] Color-coded top-down visuals; sprite drop-in via `public/assets/` + `manifest.js`
+- [x] Deployment: Dockerfile + fly.toml (single always-on machine)

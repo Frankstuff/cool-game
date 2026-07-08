@@ -374,6 +374,57 @@ test('projectiles and items appear in the snapshot', () => {
   assert.strictEqual(selfView.held, 'blaster');
 });
 
+test('picking up a Frenzy booster grants the buff and boosts damage', () => {
+  const g = fresh();
+  const p = put(g, 'p', C.TEAM.GREEN, 2000, 2000, g.addPlayer('p'));
+  g.boosters.clear();
+  g.boosters.set('b0', { id: 'b0', type: 'frenzy', x: 2000, y: 2000 });
+  const baseSpeed = g.effectiveSpeed(p);
+  g.handleBoosters();
+  assert.ok(p.frenzyUntil > g.now, 'frenzy active');
+  assert.strictEqual(g.boosters.size, 0, 'booster consumed');
+  assert.ok(g.effectiveSpeed(p) > baseSpeed, 'faster while frenzied');
+  assert.strictEqual(g.damageMult(p), C.BOOSTERS.frenzy.damageMult, 'damage boosted');
+});
+
+test('frenzied fists deal more damage than normal', () => {
+  const mk = (frenzy) => {
+    const g = fresh();
+    const a = put(g, 'a', C.TEAM.RED, 2000, 2000, g.addPlayer('a'));
+    const b = put(g, 'b', C.TEAM.GREEN, 2030, 2000, g.addPlayer('b'));
+    a.heldItem = { type: 'chad_fists', ammo: null };
+    b.health = 200; b.maxHealth = 200;
+    if (frenzy) a.frenzyUntil = g.now + 5000;
+    g.shoot('a', 1, 0);
+    return 200 - b.health;
+  };
+  assert.ok(mk(true) > mk(false), 'frenzy hits harder');
+});
+
+test('global leaderboard supports all-time / daily / weekly windows', () => {
+  let clock = 1_000_000_000_000; // fixed wall clock
+  const g = new Game({ seed: 1, wallClock: () => clock });
+  // An old run (10 days ago) and a recent run (1 hour ago).
+  g.history.push({ name: 'old', team: 'red', score: 999, links: 0, survival: 0, orbs: 0, disruptions: 0, dominance: 0, at: clock - 10 * 86400000 });
+  g.history.push({ name: 'recent', team: 'blue', score: 500, links: 0, survival: 0, orbs: 0, disruptions: 0, dominance: 0, at: clock - 3600000 });
+  const all = g.getGlobalLeaderboard('score', 'all', 10).map((e) => e.name);
+  const week = g.getGlobalLeaderboard('score', 'week', 10).map((e) => e.name);
+  const day = g.getGlobalLeaderboard('score', 'day', 10).map((e) => e.name);
+  assert.ok(all.includes('old') && all.includes('recent'), 'all-time has both');
+  assert.ok(week.includes('recent') && !week.includes('old'), 'weekly excludes 10-day-old');
+  assert.ok(day.includes('recent') && !day.includes('old'), 'daily excludes old');
+});
+
+test('leaving the game records the run into history', () => {
+  const g = fresh();
+  const p = g.addPlayer('leaver');
+  p.score = 250;
+  const before = g.history.length;
+  g.removePlayer('leaver');
+  assert.strictEqual(g.history.length, before + 1);
+  assert.strictEqual(g.history[g.history.length - 1].score, 250);
+});
+
 test('tick advances clock and keeps players in bounds', () => {
   const g = fresh();
   const p = put(g, 'p', C.TEAM.BLUE, 10, 10, g.addPlayer('p'));
