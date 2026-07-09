@@ -23,6 +23,20 @@
   let joined = false;
   const feed = [];
 
+  // ---- diagnostics (F3 overlay) ----
+  const SERVER_STEP_MS = 1000 / C.WORLD.TICK_RATE; // 50ms budget at 20Hz
+  const diag = {
+    show: false,
+    ping: 0, pingMax: 0,        // round-trip time to server (network health)
+    gap: 0, gapMax: 0,          // ms between server updates (stall detector)
+    lastStateAt: 0,
+    fps: 0, frames: 0, fpsAt: 0,
+    resetAt: 0,
+  };
+  const diagEl = document.createElement('pre');
+  diagEl.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:20;margin:0;padding:8px 12px;background:#000c;color:#8affc8;font:11px/1.5 ui-monospace,monospace;border-radius:8px;pointer-events:none;white-space:pre;display:none;text-align:left';
+  document.body.appendChild(diagEl);
+
   function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -39,9 +53,31 @@
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.t === 'welcome') selfId = msg.id;
-      else if (msg.t === 'state') { state = msg; onState(msg); }
+      else if (msg.t === 'pong') {
+        const rtt = performance.now() - msg.ts;
+        diag.ping = rtt;
+        if (rtt > diag.pingMax) diag.pingMax = rtt;
+      } else if (msg.t === 'state') {
+        const now = performance.now();
+        if (diag.lastStateAt) {
+          diag.gap = now - diag.lastStateAt;
+          if (diag.gap > diag.gapMax) diag.gapMax = diag.gap;
+        }
+        diag.lastStateAt = now;
+        state = msg;
+        onState(msg);
+      }
     };
   }
+
+  // Measure round-trip time; the server echoes ts back immediately as 'pong'.
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) send({ t: 'ping', ts: performance.now() });
+    // Decay the rolling maxes every ~5s so old spikes clear.
+    if (performance.now() - diag.resetAt > 5000) {
+      diag.pingMax = diag.ping; diag.gapMax = diag.gap; diag.resetAt = performance.now();
+    }
+  }, 1000);
 
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
@@ -68,6 +104,7 @@
   let mouse = { x: window.innerWidth / 2 + 100, y: window.innerHeight / 2, active: false };
   window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
+    if (e.key === 'F3') { diag.show = !diag.show; diagEl.style.display = diag.show ? 'block' : 'none'; e.preventDefault(); return; }
     if (!joined) return;
     const team = state && state.self && state.self.team;
     if (e.key === ' ') { send({ t: 'link_request' }); e.preventDefault(); }
@@ -221,6 +258,12 @@
   // ---- render loop ----
   function render() {
     requestAnimationFrame(render);
+    // FPS counter
+    diag.frames++;
+    const t = performance.now();
+    if (t - diag.fpsAt >= 1000) { diag.fps = diag.frames; diag.frames = 0; diag.fpsAt = t; }
+    if (diag.show) updateDiag();
+
     ctx.fillStyle = '#0c1020';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!state || !state.self) return;
@@ -519,6 +562,43 @@
       ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rad, y + Math.sin(a) * rad);
     }
     ctx.closePath(); ctx.fill();
+  }
+
+  // Build the F3 overlay text and a plain-English verdict about where lag lives.
+  function updateDiag() {
+    const s = (state && state.stats) || { tickMs: 0, tickMaxMs: 0, lagMs: 0, lagMaxMs: 0, clients: 0 };
+    const ping = Math.round(diag.ping), pingMax = Math.round(diag.pingMax);
+    const gap = Math.round(diag.gap), gapMax = Math.round(diag.gapMax);
+
+    // Is the SERVER struggling? (affects everyone at once)
+    const serverBad = s.tickMaxMs > SERVER_STEP_MS * 0.8 || s.lagMaxMs > 30;
+    // Is the NETWORK struggling for THIS client? (per-player spikes / loss)
+    const netBad = pingMax > 150 || gapMax > SERVER_STEP_MS * 3;
+
+    let verdict, color;
+    if (serverBad) {
+      verdict = 'SERVER hitching → everyone lags together. Fix: spatial grid / lighter ticks.';
+      color = '#ff8c66';
+    } else if (netBad) {
+      verdict = 'NETWORK/packet-loss on YOUR line → per-player spikes. Fix: interpolation, then UDP.';
+      color = '#ffd466';
+    } else {
+      verdict = 'Healthy ✓';
+      color = '#8affc8';
+    }
+    diagEl.style.color = color;
+    diagEl.textContent =
+      `F3 diagnostics                       (press F3 to hide)\n` +
+      `─ YOU (client) ───────────────────────────────────\n` +
+      `FPS         ${diag.fps}\n` +
+      `Ping (RTT)  ${ping}ms   (5s max ${pingMax}ms)   ← your line to the server\n` +
+      `Update gap  ${gap}ms   (5s max ${gapMax}ms)   ← time between server updates\n` +
+      `─ SERVER (shared) ────────────────────────────────\n` +
+      `Tick time   ${s.tickMs}ms  (max ${s.tickMaxMs}ms)  budget ${Math.round(SERVER_STEP_MS)}ms\n` +
+      `Loop lag    ${s.lagMs}ms  (max ${s.lagMaxMs}ms)   ← >30 means server can't keep up\n` +
+      `Players     ${s.clients}\n` +
+      `──────────────────────────────────────────────────\n` +
+      verdict;
   }
 
   connect();
